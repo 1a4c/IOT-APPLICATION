@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3C Ecosystem Product Matrix & Mask Layout Console</title>
+    <style>
+        :root {
+            --bg-dark: #05070a;
+            --panel-bg: rgba(13, 17, 23, 0.95);
+            --primary-blue: #00f0ff;
+            --accent-purple: #7000ff;
+            --amber-hv: #ffaa00;
+            --status-green: #00ff66;
+            --alert-red: #ff0055;
+            --border-color: #1a2332;
+            --font-code: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0; padding: 0;
+            background-color: var(--bg-dark);
+            color: #8b9bb4;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: grid;
+            grid-template-columns: 360px 1fr 340px;
+            grid-template-rows: 55px 1fr 180px;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        header {
+            grid-column: 1 / -1;
+            background: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 20px;
+        }
+
+        .sys-title { font-size: 0.95rem; font-weight: 700; color: #f0f6fc; display: flex; align-items: center; gap: 10px; }
+        .sys-title .badge { background: rgba(0, 240, 255, 0.1); border: 1px solid var(--primary-blue); color: var(--primary-blue); font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; font-family: var(--font-code); }
+
+        .panel-left, .panel-right {
+            background: var(--panel-bg);
+            padding: 16px; display: flex; flex-direction: column; gap: 12px;
+            overflow-y: auto;
+        }
+        .panel-left { grid-row: 2 / 4; border-right: 1px solid var(--border-color); }
+        .panel-right { grid-row: 2 / 4; border-left: 1px solid var(--border-color); }
+
+        .panel-title { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #485b75; letter-spacing: 1px; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; }
+
+        /* 3C 產品選擇陣列 */
+        .product-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+        }
+        .product-card {
+            background: #090d14; border: 1px solid var(--border-color);
+            border-radius: 6px; padding: 10px; cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .product-card:hover { border-color: var(--primary-blue); background: rgba(0, 240, 255, 0.05); }
+        .product-card.active {
+            border-color: var(--primary-blue);
+            background: rgba(0, 240, 255, 0.15);
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+        }
+        .product-name { font-size: 0.8rem; font-weight: bold; color: #f0f6fc; }
+        .product-desc { font-size: 0.65rem; color: #5a6e85; margin-top: 4px; }
+
+        /* DSL Code Editor */
+        .dsl-editor {
+            background: #080c14; border: 1px solid var(--border-color); border-radius: 6px;
+            padding: 10px; font-family: var(--font-code); font-size: 0.65rem; line-height: 1.45;
+            color: #c9d1d9; height: 260px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+        }
+
+        .code-kw { color: var(--accent-purple); font-weight: bold; }
+        .code-fn { color: var(--primary-blue); }
+        .code-num { color: var(--amber-hv); }
+        .code-str { color: var(--status-green); }
+        .code-prop { color: #ff7b72; }
+
+        .viewport-main {
+            grid-column: 2; grid-row: 2;
+            position: relative; background: #030508;
+            display: flex; align-items: center; justify-content: center; overflow: hidden;
+        }
+
+        .die-canvas {
+            width: 88%; height: 88%;
+            background: #06090e; border: 1px solid #1a2433;
+            position: relative; box-shadow: inset 0 0 80px rgba(0,0,0,0.9);
+            background-image: linear-gradient(rgba(0, 240, 255, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 240, 255, 0.05) 1px, transparent 1px);
+            background-size: 20px 20px; border-radius: 4px;
+            display: grid; grid-template-columns: repeat(12, 1fr); grid-template-rows: repeat(12, 1fr);
+            gap: 6px; padding: 10px; transition: all 0.5s ease;
+        }
+
+        .mask-block {
+            border: 1px dashed #2a384c; border-radius: 4px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-family: var(--font-code); font-size: 0.65rem; color: #5a6e85;
+            transition: all 0.6s ease; text-align: center; padding: 4px; opacity: 0.2;
+        }
+
+        .mask-block.active { opacity: 1; filter: drop-shadow(0 0 8px currentColor); }
+
+        .block-holo {
+            grid-column: 1 / 7; grid-row: 1 / 6;
+            background: rgba(112, 0, 255, 0.15); border: 1.5px solid var(--accent-purple); color: #d8b4fe;
+        }
+
+        .block-filter {
+            grid-column: 7 / 13; grid-row: 1 / 7;
+            background: rgba(0, 240, 255, 0.12); border: 1.5px solid var(--primary-blue); color: var(--primary-blue);
+        }
+
+        .block-pulley {
+            grid-column: 1 / 7; grid-row: 6 / 13;
+            background: rgba(255, 170, 0, 0.12); border: 1.5px solid var(--amber-hv); color: var(--amber-hv);
+        }
+
+        .block-heat {
+            grid-column: 7 / 13; grid-row: 7 / 13;
+            background: rgba(255, 0, 85, 0.12); border: 1.5px solid var(--alert-red); color: var(--alert-red);
+        }
+
+        .svg-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+        }
+
+        .gds-polygon {
+            fill: rgba(0, 255, 102, 0.15); stroke: var(--status-green); stroke-width: 2;
+            stroke-dasharray: 6; opacity: 0; transition: all 0.8s ease;
+        }
+
+        .metric-card { background: #090d14; border: 1px solid var(--border-color); border-radius: 6px; padding: 10px; }
+        .metric-val { font-size: 1.1rem; font-family: var(--font-code); color: var(--primary-blue); margin-top: 2px; }
+
+        .action-btn {
+            width: 100%; padding: 10px;
+            background: rgba(112, 0, 255, 0.2); border: 1px solid var(--accent-purple);
+            color: #d8b4fe; border-radius: 4px; cursor: pointer;
+            font-weight: bold; font-family: var(--font-code); font-size: 0.8rem;
+            transition: all 0.2s; margin-top: 6px;
+        }
+        .action-btn:hover { background: var(--accent-purple); color: #fff; box-shadow: 0 0 15px rgba(112, 0, 255, 0.5); }
+
+        .panel-bottom { grid-column: 2; grid-row: 3; background: var(--panel-bg); border-top: 1px solid var(--border-color); padding: 12px 20px; }
+        .event-log { font-family: var(--font-code); font-size: 0.72rem; background: #05070a; border: 1px solid var(--border-color); border-radius: 4px; padding: 8px; height: 110px; overflow-y: auto; color: #8b9bb4; }
+        .log-item { margin-bottom: 4px; }
+        .tag-dsl { color: var(--accent-purple); font-weight: bold; }
+        .tag-prod { color: var(--primary-blue); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="sys-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00f0ff" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            3C Product Matrix & Advanced Mask Layout Compiler
+            <span class="badge">N3 FinFET System</span>
+        </div>
+    </header>
+
+    <div class="panel-left">
+        <div class="panel-title">1. Select 3C Target Product Category</div>
+        <div class="product-grid">
+            <div class="product-card active" onclick="selectProduct('phone', this)">
+                <div class="product-name"> flagship Phone</div>
+                <div class="product-desc">多鏡頭/熱壓抑制/強訊號</div>
+            </div>
+            <div class="product-card" onclick="selectProduct('vr', this)">
+                <div class="product-name"> Spatial VR/AR</div>
+                <div class="product-desc">3D 全息渲染/低延遲</div>
+            </div>
+            <div class="product-card" onclick="selectProduct('watch', this)">
+                <div class="product-name"> Smart Watch</div>
+                <div class="product-desc">生醫凝膠濾波/超低功耗</div>
+            </div>
+            <div class="product-card" onclick="selectProduct('auto', this)">
+                <div class="product-name"> Automotive 3C</div>
+                <div class="product-desc">高熱耐受/震動帶寬防護</div>
+            </div>
+        </div>
+
+        <div class="panel-title" style="margin-top:10px;">2. Dynamic System DSL Code</div>
+        <div class="dsl-editor" id="dslDisplay">
+<div><span class="code-kw">define_product_spec</span> <span class="code-str">SMART_PHONE_SOC</span> {</div>
+<div>  <span class="code-prop">Allot_arc_sensed_log</span>.reused_codes({</div>
+<div>    <span class="code-prop">alignment</span>: <span class="code-str">"ALIGNED-bino-biot-shorles"</span>,</div>
+<div>    <span class="code-prop">injected_swirl</span>: <span class="code-num">6-swirl</span></div>
+<div>  });</div>
+
+<div>  <span class="code-kw">active_layers</span> [</div>
+<div>    <span class="code-str">"WHITE_NOISE_GEL_FILTER"</span>,</div>
+<div>    <span class="code-str">"U_PULLEY_BANDWIDTH"</span>,</div>
+<div>    <span class="code-str">"3D_HOLOGRAM_HEADING"</span></div>
+<div>  ];</div>
+
+<div>  <span class="code-kw">action</span> {</div>
+<div>    <span class="code-fn">flatten_netlist</span>();</div>
+<div>    <span class="code-fn">stream_gds2</span>();</div>
+<div>  }</div>
+<div>}</div>
+        </div>
+    </div>
+
+    <div class="viewport-main">
+        <div class="die-canvas" id="dieCanvas">
+            <!-- 3D 歐幾里得全息渲染遮罩區 -->
+            <div class="mask-block block-holo" id="blockHolo">
+                <b>3D Hologram Area</b><br>
+                hologram_euclidean_3D-rendered<br>
+                (ALIGNED-bino-biot)
+            </div>
+
+            <!-- 白雜訊與 Gel 濾波陣列遮罩區 -->
+            <div class="mask-block block-filter" id="blockFilter">
+                <b>Noise & Gel Filter</b><br>
+                white-noise.gel_filter<br>
+                TAP_attribute()_GRISP
+            </div>
+
+            <!-- U型帶寬與週期打擊抑制區 -->
+            <div class="mask-block block-pulley" id="blockPulley">
+                <b>U-Pulley Bandwidth</b><br>
+                U-pulley_band-width<br>
+                strike_suppressed
+            </div>
+
+            <!-- 熱氣球閥壓制與熱感測區 -->
+            <div class="mask-block block-heat" id="blockHeat">
+                <b>Thermal Protection Zone</b><br>
+                heat_balloon.revalved<br>
+                injected-6-swirl
+            </div>
+
+            <svg class="svg-overlay">
+                <path class="gds-polygon" id="polyHolo" d="M 20,20 L 260,20 L 260,200 L 20,200 Z" />
+                <path class="gds-polygon" id="polyPulley" d="M 20,220 L 120,220 L 120,380 L 260,380 L 260,420 L 20,420 Z" />
+                <path class="gds-polygon" id="polyHeat" d="M 280,250 C 350,200 450,200 520,250 C 550,320 480,420 400,420 C 320,420 250,320 280,250 Z" />
+            </svg>
+        </div>
+    </div>
+
+    <div class="panel-right">
+        <div class="panel-title">Product & Mask Signoff</div>
+
+        <div class="metric-card">
+            <div style="font-size:0.75rem; color:#485b75;">Selected Target</div>
+            <div class="metric-val" id="targetName" style="color:#fff;">Flagship Phone</div>
+        </div>
+
+        <div class="metric-card">
+            <div style="font-size:0.75rem; color:#485b75;">Active Mask Layers</div>
+            <div class="metric-val" id="activeLayersCount">3 Layers</div>
+        </div>
+
+        <div class="metric-card">
+            <div style="font-size:0.75rem; color:#485b75;">Polygon Synthesis</div>
+            <div class="metric-val" id="polyCount">0 Count</div>
+        </div>
+
+        <div class="metric-card">
+            <div style="font-size:0.75rem; color:#485b75;">Estimated Die Size</div>
+            <div class="metric-val" id="dieSize">85 mm²</div>
+        </div>
+
+        <button class="action-btn" onclick="executeFullSystemCompiler()">編譯該 3C 產品光罩</button>
+    </div>
+
+    <div class="panel-bottom">
+        <div class="panel-title" style="border:none; padding:0; margin-bottom:6px;">System Event Console</div>
+        <div class="event-log" id="eventLog">
+            <div class="log-item">[00:00:00] <span class="tag-prod">[3C-MATRIX]</span> 已載入「Flagship Phone」架構設定檔。</div>
+        </div>
+    </div>
+
+    <script>
+        const eventLog = document.getElementById('eventLog');
+        const targetName = document.getElementById('targetName');
+        const activeLayersCount = document.getElementById('activeLayersCount');
+        const polyCount = document.getElementById('polyCount');
+        const dieSize = document.getElementById('dieSize');
+        const dslDisplay = document.getElementById('dslDisplay');
+
+        let currentProduct = 'phone';
+
+        const productSpecs = {
+            phone: {
+                name: 'Flagship Phone',
+                layers: ['blockHolo', 'blockFilter', 'blockPulley', 'blockHeat'],
+                polygons: '12,450,100',
+                size: '95 mm²',
+                dsl: `<div><span class="code-kw">define_product_spec</span> <span class="code-str">SMART_PHONE_SOC</span> {</div>
+<div>  <span class="code-prop">Allot_arc_sensed_log</span>.reused_codes();</div>
+<div>  <span class="code-kw">active_layers</span> [</div>
+<div>    <span class="code-str">"WHITE_NOISE_GEL_FILTER"</span>,</div>
+<div>    <span class="code-str">"U_PULLEY_BANDWIDTH"</span>,</div>
+<div>    <span class="code-str">"3D_HOLOGRAM_HEADING"</span>,</div>
+<div>    <span class="code-str">"HEAT_BALLOON_REVALVED"</span></div>
+<div>  ];</div>
+<div>}`
+            },
+            vr: {
+                name: 'Spatial VR/AR',
+                layers: ['blockHolo', 'blockFilter'],
+                polygons: '8,120,000',
+                size: '120 mm²',
+                dsl: `<div><span class="code-kw">define_product_spec</span> <span class="code-str">SPATIAL_VR_SOC</span> {</div>
+<div>  <span class="code-prop">focus</span>: <span class="code-str">"hologram_euclidean_3D-rendered"</span>;</div>
+<div>  <span class="code-kw">active_layers</span> [</div>
+<div>    <span class="code-str">"3D_HOLOGRAM_HEADING"</span>,</div>
+<div>    <span class="code-str">"WHITE_NOISE_GEL_FILTER"</span></div>
+<div>  ];</div>
+<div>}`
+            },
+            watch: {
+                name: 'Smart Watch',
+                layers: ['blockFilter', 'blockPulley'],
+                polygons: '3,210,400',
+                size: '32 mm²',
+                dsl: `<div><span class="code-kw">define_product_spec</span> <span class="code-str">WEARABLE_WATCH_SOC</span> {</div>
+<div>  <span class="code-prop">filter</span>: <span class="code-str">"TAP_attribute()_GRISP"</span>;</div>
+<div>  <span class="code-kw">active_layers</span> [</div>
+<div>    <span class="code-str">"WHITE_NOISE_GEL_FILTER"</span>,</div>
+<div>    <span class="code-str">"U_PULLEY_BANDWIDTH"</span></div>
+<div>  ];</div>
+<div>}`
+            },
+            auto: {
+                name: 'Automotive 3C',
+                layers: ['blockPulley', 'blockHeat'],
+                polygons: '15,890,000',
+                size: '180 mm²',
+                dsl: `<div><span class="code-kw">define_product_spec</span> <span class="code-str">AUTOMOTIVE_SOC</span> {</div>
+<div>  <span class="code-prop">safety</span>: <span class="code-str">"strike_suppressed"</span>;</div>
+<div>  <span class="code-kw">active_layers</span> [</div>
+<div>    <span class="code-str">"U_PULLEY_BANDWIDTH"</span>,</div>
+<div>    <span class="code-str">"HEAT_BALLOON_REVALVED"</span></div>
+<div>  ];</div>
+<div>}`
+            }
+        };
+
+        function addLog(msg, type='dsl') {
+            const entry = document.createElement('div');
+            entry.className = 'log-item';
+            const time = new Date().toLocaleTimeString();
+            const tag = type === 'dsl' ? '<span class="tag-dsl">[DSL-COMPILER]</span>' : '<span class="tag-prod">[3C-MATRIX]</span>';
+            entry.innerHTML = `[${time}] ${tag} ${msg}`;
+            eventLog.appendChild(entry);
+            eventLog.scrollTop = eventLog.scrollHeight;
+        }
+
+        function selectProduct(type, el) {
+            document.querySelectorAll('.product-card').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+
+            currentProduct = type;
+            const spec = productSpecs[type];
+
+            targetName.innerText = spec.name;
+            activeLayersCount.innerText = spec.layers.length + " Layers";
+            dieSize.innerText = spec.size;
+            polyCount.innerText = "0 Count";
+            dslDisplay.innerHTML = spec.dsl;
+
+            // Reset blocks
+            document.querySelectorAll('.mask-block').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.gds-polygon').forEach(p => p.style.opacity = '0');
+
+            addLog(`切換目標 3C 產品類別至：<b>${spec.name}</b>`, 'prod');
+        }
+
+        function executeFullSystemCompiler() {
+            const spec = productSpecs[currentProduct];
+            addLog(`開始編譯 ${spec.name} 專屬 GDSII 光罩幾何...`);
+
+            spec.layers.forEach((layerId, idx) => {
+                setTimeout(() => {
+                    document.getElementById(layerId).classList.add('active');
+                    if(layerId === 'blockHolo') document.getElementById('polyHolo').style.opacity = '1';
+                    if(layerId === 'blockPulley') document.getElementById('polyPulley').style.opacity = '1';
+                    if(layerId === 'blockHeat') document.getElementById('polyHeat').style.opacity = '1';
+                    addLog(`載入並渲染圖層：<span style="color:var(--primary-blue);">${layerId}</span>`);
+                }, (idx + 1) * 500);
+            });
+
+            setTimeout(() => {
+                polyCount.innerText = spec.polygons;
+                addLog(`<span style="color:var(--status-green);">[成功] ${spec.name} 光罩編譯完成！總多邊形數：${spec.polygons}</span>`);
+            }, (spec.layers.length + 1) * 500);
+        }
+    </script>
+</body>
+</html>

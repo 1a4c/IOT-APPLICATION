@@ -1,0 +1,6 @@
+{
+  "name": "BLE Spatial IoT DSL Studio",
+  "description": "Industrial IoT & AR Spatial Computing DSL Parser, Geofence Simulator & Valve Automation Inspector",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

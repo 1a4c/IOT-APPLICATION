@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智慧農業 Digital Twin 控制中心</title>
+    <!-- Three.js 3D 渲染器 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Leaflet GIS 地圖 -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Chart.js 圖表 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --panel-bg: rgba(30, 41, 59, 0.85);
+            --accent-green: #10b981;
+            --accent-blue: #3b82f6;
+            --accent-warning: #f59e0b;
+            --accent-danger: #ef4444;
+            --text-main: #f8fafc;
+            --border-color: #334155;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 頂部導覽列 */
+        header {
+            background: rgba(15, 23, 42, 0.95);
+            border-bottom: 1px solid var(--border-color);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .logo-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: var(--accent-green);
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 20px;
+            font-size: 0.85rem;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--accent-green);
+            box-shadow: 0 0 8px var(--accent-green);
+        }
+
+        /* 主工作區 */
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 320px 1fr 360px;
+            grid-template-rows: 1fr 240px;
+            gap: 10px;
+            padding: 10px;
+            flex: 1;
+            height: calc(100vh - 50px);
+        }
+
+        /* 通用面板樣式 */
+        .panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow: hidden;
+        }
+
+        .panel-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #94a3b8;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* 3D 視圖區塊 */
+        #viewport-3d {
+            grid-column: 2 / 3;
+            grid-row: 1 / 2;
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        #three-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* GIS 地圖 */
+        #gis-map {
+            width: 100%;
+            height: 100%;
+            border-radius: 6px;
+        }
+
+        /* 儀表板與數據讀數 */
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        .metric-card {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px;
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            color: #64748b;
+        }
+
+        .metric-value {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-top: 2px;
+        }
+
+        /* 音訊診斷視覺化 */
+        .audio-wave {
+            height: 40px;
+            display: flex;
+            align-items: flex-end;
+            gap: 3px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .bar {
+            flex: 1;
+            background: var(--accent-blue);
+            height: 10%;
+            transition: height 0.1s ease;
+        }
+
+        /* 控制按鈕 */
+        .btn {
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .btn-danger {
+            background: var(--accent-danger);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 6px;
+        }
+
+        /* 數據流日誌 */
+        .log-container {
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: #34d399;
+            background: #000;
+            padding: 8px;
+            border-radius: 4px;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        .log-item {
+            margin-bottom: 4px;
+            border-bottom: 1px dashed #1e293b;
+        }
+
+        /* 浮動 3D 覆蓋控制項目 */
+        .overlay-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--panel-bg);
+            padding: 8px;
+            border-radius: 6px;
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 頂部列 -->
+    <header>
+        <div class="logo-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            SmartFarm Digital Twin (Sigma Concatenation Pipeline)
+        </div>
+        <div class="status-bar">
+            <div class="status-item"><div class="status-dot"></div> MQTT/WebSocket: 192.168.1.100</div>
+            <div class="status-item"><div class="status-dot"></div> Drone RTK: FIX (0.02m)</div>
+            <div class="status-item"><div class="status-dot"></div> Batch Rate: 60Hz</div>
+        </div>
+    </header>
+
+    <!-- 主儀表板框架 -->
+    <div class="dashboard-container">
+        
+        <!-- 左側面板：數據感知與音訊 -->
+        <div class="panel" style="grid-column: 1 / 2; grid-row: 1 / 3;">
+            <div class="panel-title">MQTT 感測節點 (ESP32 / STM32)</div>
+            <div class="metric-grid">
+                <div class="metric-card">
+                    <div class="metric-label">土溼度 (Hex-A1)</div>
+                    <div class="metric-value" id="val-soil">42.5 %</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">溫室溫度</div>
+                    <div class="metric-value" id="val-temp">28.4 °C</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">太陽能板發電</div>
+                    <div class="metric-value" id="val-solar">3.8 kW</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">儲能電池 (BMS)</div>
+                    <div class="metric-value" id="val-bat">87 %</div>
+                </div>
+            </div>
+
+            <div class="panel-title" style="margin-top: 10px;">Web Audio 聲學辨識</div>
+            <div>
+                <div style="font-size: 0.8rem; margin-bottom: 4px; display: flex; justify-content: space-between;">
+                    <span>模擬音訊頻譜 `audio.extract('warning')`</span>
+                    <span id="audio-status" style="color: var(--accent-green);">正常</span>
+                </div>
+                <div class="audio-wave" id="audio-bars">
+                    <!-- Dynamic Bars -->
+                </div>
+            </div>
+            <button class="btn" onclick="triggerAudioAnomaly()">模擬幫浦空轉異音</button>
+
+            <div class="panel-title" style="margin-top: 10px;">OpenCV / AI 視覺與多光譜 (NDVI)</div>
+            <div style="position: relative; height: 120px; background: #000; border-radius: 4px; overflow: hidden;">
+                <canvas id="ndvi-canvas" width="290" height="120"></canvas>
+                <div style="position: absolute; bottom: 4px; left: 4px; font-size: 0.7rem; background: rgba(0,0,0,0.6); padding: 2px 4px; border-radius: 2px;">
+                    NDVI 均值: <span id="ndvi-val" style="color: #4ade80;">0.74 (健康)</span>
+                </div>
+            </div>
+
+            <div class="panel-title" style="margin-top: 10px;">控制指令 (Sigma_concat API)</div>
+            <div class="btn-group">
+                <button class="btn" onclick="toggleIrrigation()">開關滴灌</button>
+                <button class="btn" onclick="triggerDroneMission()">無人機巡航</button>
+                <button class="btn btn-danger" onclick="emergencyStop()">緊急停止</button>
+            </div>
+        </div>
+
+        <!-- 中間面板：3D 數位分身場景 -->
+        <div id="viewport-3d">
+            <div class="overlay-controls">
+                <button class="btn" onclick="resetCamera()">重置視角</button>
+                <button class="btn" onclick="toggleSolarTrack()">追日模式</button>
+            </div>
+            <div id="three-canvas"></div>
+        </div>
+
+        <!-- 右側面板：GIS 地圖與 AI 決策系統 -->
+        <div class="panel" style="grid-column: 3 / 4; grid-row: 1 / 2;">
+            <div class="panel-title">RTK GIS 農場導航 (OpenLayers / Leaflet)</div>
+            <div id="gis-map"></div>
+        </div>
+
+        <!-- 右側面板下：AI 決策與預測 -->
+        <div class="panel" style="grid-column: 3 / 4; grid-row: 2 / 3;">
+            <div class="panel-title">AI 邊緣決策與天氣預估</div>
+            <div style="font-size: 0.8rem; color: #cbd5e1; line-height: 1.4;">
+                <p>• <b>追日演算法：</b> 太陽仰角 42°，模組效率極大化中</p>
+                <p>• <b>灌溉決策：</b> 預計 14:00 降雨機率 78%，自動扣減 40% 灌溉量</p>
+                <p>• <b>作物病害風險：</b> 高濕度風險度 Low (12%)</p>
+            </div>
+            <canvas id="chart-telemetry" height="80"></canvas>
+        </div>
+
+        <!-- 中間下方面板：Batched Pipeline 數據流 -->
+        <div class="panel" style="grid-column: 2 / 3; grid-row: 2 / 3;">
+            <div class="panel-title">
+                <span>批次資料流管道 (batched_process Pipeline)</span>
+                <span style="font-size: 0.75rem; color: #64748b;">Buffer: 128 KB | Latency: 4ms</span>
+            </div>
+            <div class="log-container" id="pipeline-log">
+                <!-- Log entries will be inserted here dynamically -->
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        /* ==========================================
+           1. Three.js 3D 農場場景建立
+           ========================================== */
+        const container = document.getElementById('three-canvas');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0b0f19);
+        scene.fog = new THREE.FogExp2(0x0b0f19, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+        camera.position.set(30, 20, 30);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.shadowMap.enabled = true;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // 光源
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+
+        const sunLight = new THREE.DirectionalLight(0xfffaed, 1.2);
+        sunLight.position.set(20, 40, 20);
+        sunLight.castShadow = true;
+        scene.add(sunLight);
+
+        // 3D 地形 (Terrain)
+        const terrainGeo = new THREE.PlaneGeometry(60, 60, 32, 32);
+        const pos = terrainGeo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+            // 輕微起伏
+            pos.setZ(i, Math.sin(pos.getX(i) * 0.2) * Math.cos(pos.getY(i) * 0.2) * 0.5);
+        }
+        terrainGeo.computeVertexNormals();
+        const terrainMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9, flatShading: true });
+        const terrain = new THREE.Mesh(terrainGeo, terrainMat);
+        terrain.rotation.x = -Math.PI / 2;
+        scene.add(terrain);
+
+        // 網格線段
+        const grid = new THREE.GridHelper(60, 20, 0x10b981, 0x334155);
+        grid.position.y = 0.01;
+        scene.add(grid);
+
+        // 溫室 (Greenhouse)
+        const ghGroup = new THREE.Group();
+        const ghGeo = new THREE.BoxGeometry(10, 5, 16);
+        const ghMat = new THREE.MeshPhysicalMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.3, transmission: 0.6 });
+        const greenhouse = new THREE.Mesh(ghGeo, ghMat);
+        greenhouse.position.set(-15, 2.5, -5);
+        ghGroup.add(greenhouse);
+        scene.add(ghGroup);
+
+        // 太陽能板 (Solar Panels)
+        const solarGroup = new THREE.Group();
+        const solarGeo = new THREE.BoxGeometry(4, 0.1, 2);
+        const solarMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, metalness: 0.8, roughness: 0.2 });
+        
+        for(let i=0; i<3; i++) {
+            const panel = new THREE.Mesh(solarGeo, solarMat);
+            panel.position.set(12, 1.5, -10 + i * 4);
+            panel.rotation.x = Math.PI / 6;
+            solarGroup.add(panel);
+        }
+        scene.add(solarGroup);
+
+        // 無人機 (Drone)
+        const droneGroup = new THREE.Group();
+        const droneBody = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.2, 1.2), new THREE.MeshStandardMaterial({ color: 0xef4444 }));
+        droneGroup.add(droneBody);
+        droneGroup.position.set(0, 8, 0);
+        scene.add(droneGroup);
+
+        // 隨機生成農作物網格點
+        const cropGeo = new THREE.ConeGeometry(0.3, 0.8, 4);
+        const cropMat = new THREE.MeshStandardMaterial({ color: 0x10b981 });
+        for(let x = -8; x <= 8; x += 2) {
+            for(let z = 5; z <= 20; z += 2) {
+                const crop = new THREE.Mesh(cropGeo, cropMat);
+                crop.position.set(x, 0.4, z);
+                scene.add(crop);
+            }
+        }
+
+        // 動畫循環
+        let droneAngle = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 無人機 Patrol 巡航軌跡
+            droneAngle += 0.02;
+            droneGroup.position.x = Math.cos(droneAngle) * 12;
+            droneGroup.position.z = Math.sin(droneAngle) * 12;
+            droneGroup.position.y = 8 + Math.sin(droneAngle * 2) * 1;
+            droneGroup.rotation.y = -droneAngle;
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        function resetCamera() {
+            camera.position.set(30, 20, 30);
+            controls.target.set(0, 0, 0);
+        }
+
+        let solarTracking = false;
+        function toggleSolarTrack() {
+            solarTracking = !solarTracking;
+            solarGroup.children.forEach(p => p.rotation.x = solarTracking ? Math.PI / 4 : Math.PI / 6);
+            logPipeline(`[Command] Solar Tracking set to: ${solarTracking}`);
+        }
+
+        /* ==========================================
+           2. Leaflet GIS 地圖 & 六角網格 (Hex Grid)
+           ========================================== */
+        const map = L.map('gis-map').setView([24.08, 120.55], 16);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19
+        }).addTo(map);
+
+        // RTK 農機定位 Marker
+        const tractorMarker = L.marker([24.08, 120.55]).addTo(map).bindPopup('RTK 翻土機 (精度 1.5cm)');
+
+        // 模擬 Leaflet 六角幾何繪製
+        const centerLat = 24.08, centerLng = 120.55;
+        for (let i = -2; i <= 2; i++) {
+            for (let j = -2; j <= 2; j++) {
+                const lat = centerLat + (i * 0.0015);
+                const lng = centerLng + (j * 0.0018);
+                
+                L.polygon([
+                    [lat + 0.0004, lng],
+                    [lat + 0.0002, lng + 0.0005],
+                    [lat - 0.0002, lng + 0.0005],
+                    [lat - 0.0004, lng],
+                    [lat - 0.0002, lng - 0.0005],
+                    [lat + 0.0002, lng - 0.0005]
+                ], {
+                    color: '#10b981',
+                    fillColor: '#059669',
+                    fillOpacity: 0.15,
+                    weight: 1
+                }).addTo(map);
+            }
+        }
+
+        /* ==========================================
+           3. Web Audio 聲學異音偵測模擬
+           ========================================== */
+        const audioBarsContainer = document.getElementById('audio-bars');
+        const barCount = 16;
+        const bars = [];
+
+        for (let i = 0; i < barCount; i++) {
+            const bar = document.createElement('div');
+            bar.className = 'bar';
+            audioBarsContainer.appendChild(bar);
+            bars.push(bar);
+        }
+
+        let isAudioAnomaly = false;
+        setInterval(() => {
+            bars.forEach((bar, index) => {
+                let height = Math.random() * 40 + 10;
+                if (isAudioAnomaly && index > 10) {
+                    height = Math.random() * 50 + 50; // 高頻峰值異音
+                }
+                bar.style.height = `${height}%`;
+                bar.style.background = isAudioAnomaly ? 'var(--accent-danger)' : 'var(--accent-blue)';
+            });
+        }, 100);
+
+        function triggerAudioAnomaly() {
+            isAudioAnomaly = true;
+            document.getElementById('audio-status').innerText = '警告: 抽水幫浦軸承異音';
+            document.getElementById('audio-status').style.color = 'var(--accent-danger)';
+            logPipeline('[Audio API] High-frequency anomaly extracted. Match: "Pump Cavitation" (94.2%)');
+
+            setTimeout(() => {
+                isAudioAnomaly = false;
+                document.getElementById('audio-status').innerText = '正常';
+                document.getElementById('audio-status').style.color = 'var(--accent-green)';
+            }, 5000);
+        }
+
+        /* ==========================================
+           4. 多光譜 OpenCV/NDVI 模擬畫布
+           ========================================== */
+        const ndviCanvas = document.getElementById('ndvi-canvas');
+        const ctx = ndviCanvas.getContext('2d');
+
+        function renderNDVI() {
+            const imgData = ctx.createImageData(ndviCanvas.width, ndviCanvas.height);
+            for (let i = 0; i < imgData.data.length; i += 4) {
+                // 生成模擬的 NDVI 偽色彩 (紅、黃、綠)
+                const val = Math.random();
+                if (val > 0.4) {
+                    // 高植生 (綠)
+                    imgData.data[i] = 34;
+                    imgData.data[i+1] = 197;
+                    imgData.data[i+2] = 94;
+                } else if(val > 0.15) {
+                    // 中植生 (黃)
+                    imgData.data[i] = 234;
+                    imgData.data[i+1] = 179;
+                    imgData.data[i+2] = 8;
+                } else {
+                    // 土壤/水份缺損 (紅)
+                    imgData.data[i] = 239;
+                    imgData.data[i+1] = 68;
+                    imgData.data[i+2] = 68;
+                }
+                imgData.data[i+3] = 255;
+            }
+            ctx.putImageData(imgData, 0, 0);
+        }
+        renderNDVI();
+
+        /* ==========================================
+           5. 數據批次管線 (batched_process & Sigma_concat)
+           ========================================== */
+        const logBox = document.getElementById('pipeline-log');
+
+        function logPipeline(msg) {
+            const timestamp = new Date().toISOString().split('T')[1].slice(0, 12);
+            const div = document.createElement('div');
+            div.className = 'log-item';
+            div.innerText = `[${timestamp}] ${msg}`;
+            logBox.prepend(div);
+        }
+
+        // 模擬接收 MQTT Batched Data
+        setInterval(() => {
+            const temp = (28 + Math.random() * 0.8).toFixed(1);
+            const moisture = (42 + Math.random() * 2).toFixed(1);
+            
+            document.getElementById('val-temp').innerText = `${temp} °C`;
+            document.getElementById('val-soil').innerText = `${moisture} %`;
+
+            // 模擬 Sigma_concat 合併多重模組 Sensor Stream
+            const batchMsg = `batched_process([ESP32_HexA1, STM32_BMS, Drone_Telemetry]) -> Sigma_concat() len: 256b`;
+            logPipeline(batchMsg);
+        }, 3000);
+
+        function toggleIrrigation() {
+            logPipeline('[Action] MQTT -> publish("farm/pump/cmd", "TOGGLE")');
+        }
+
+        function triggerDroneMission() {
+            logPipeline('[Action] Drone Mission Dispatch -> Route: Polygon_Grid_#4');
+        }
+
+        function emergencyStop() {
+            logPipeline('[CRITICAL] EMERGENCY STOP ACTIVATED. All actuators disengaged.');
+        }
+
+        /* ==========================================
+           6. Chart.js 遙測折線圖
+           ========================================== */
+        const chartCtx = document.getElementById('chart-telemetry').getContext('2d');
+        const telemetryChart = new Chart(chartCtx, {
+            type: 'line',
+            data: {
+                labels: ['10:00', '10:05', '10:10', '10:15', '10:20', '10:25'],
+                datasets: [{
+                    label: '土壤含水量 (%)',
+                    data: [45, 44, 43.5, 43, 42.8, 42.5],
+                    borderColor: '#10b981',
+                    tension: 0.3,
+                    borderWidth: 2
+                }, {
+                    label: '光照強度 (Lux x100)',
+                    data: [30, 45, 60, 80, 75, 70],
+                    borderColor: '#f59e0b',
+                    tension: 0.3,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: '#64748b', font: { size: 9 } } },
+                    y: { ticks: { color: '#64748b', font: { size: 9 } } }
+                }
+            }
+        });
+
+        // 視窗 resize 處理
+        window.addEventListener('resize', () => {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+    </script>
+</body>
+</html>
